@@ -6,11 +6,12 @@ import {mergeGeometries} from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {createExplosionLayout} from './explosion-layout';
 import {decodeModelResponse} from './model-download';
 import {PointerTap} from './pointer-tap';
-import {SYSTEMS,type Atlas,type SceneState} from './anatomy';
-interface Props {atlas:Atlas;state:SceneState;onSelect:(id:string)=>void;onProgress:(n:number)=>void;onError:(s:string)=>void}
-export default function AnatomyScene({atlas,state,onSelect,onProgress,onError}:Props){
- const host=useRef<HTMLDivElement>(null),latest=useRef(state),select=useRef(onSelect);
- latest.current=state;select.current=onSelect;
+import {SYSTEMS,type Atlas,type SceneLabel,type SceneState} from './anatomy';
+import {MAX_LAYERS,stripes} from './groups';
+interface Props {atlas:Atlas;state:SceneState;onSelect:(id:string,additive:boolean)=>void;onBoxSelect:(ids:string[])=>void;onClear:()=>void;onLabel:(id:string)=>void;onProgress:(n:number)=>void;onError:(s:string)=>void}
+export default function AnatomyScene({atlas,state,onSelect,onBoxSelect,onClear,onLabel,onProgress,onError}:Props){
+ const host=useRef<HTMLDivElement>(null),latest=useRef(state),select=useRef(onSelect),boxSelect=useRef(onBoxSelect),clearSelect=useRef(onClear),labelClick=useRef(onLabel);
+ latest.current=state;select.current=onSelect;boxSelect.current=onBoxSelect;clearSelect.current=onClear;labelClick.current=onLabel;
  useEffect(()=>{
   const el=host.current!;let disposed=false,frame=0,dirty=true,ready=false,lastView='',lastReset=-1,lastIsolate='',layoutKey='',amount=0;
   let lastState:SceneState|null=null;
@@ -31,8 +32,12 @@ export default function AnatomyScene({atlas,state,onSelect,onProgress,onError}:P
   const innerRing=new T.Mesh(new T.RingGeometry(.55,.551,128),new T.MeshBasicMaterial({color:0xa4aeb8,transparent:true,opacity:.16,side:T.DoubleSide}));innerRing.rotation.x=-Math.PI/2;innerRing.position.y=.001;scene.add(innerRing);
   const width=T.MathUtils.ceilPowerOfTwo(atlas.parts.length),data=new Float32Array(width*4),partTexture=new T.DataTexture(data,width,1,T.RGBAFormat,T.FloatType);partTexture.needsUpdate=true;
   const selectedData=new Uint8Array(width*4),selectionTexture=new T.DataTexture(selectedData,width,1);selectionTexture.needsUpdate=true;
+  // Rows 0..MAX_LAYERS-1 hold layer colors; the last row holds layer count, band width and band phase per piece.
+  const layerData=new Float32Array(width*(MAX_LAYERS+1)*4),layerTexture=new T.DataTexture(layerData,width,MAX_LAYERS+1,T.RGBAFormat,T.FloatType);layerTexture.needsUpdate=true;
+  let lastLayers:SceneState['layers']|null=null;
   const materials:T.Material[]=[],geometries:T.BufferGeometry[]=[],pickers:(T.Mesh|undefined)[]=[],centers=atlas.parts.map(p=>new T.Vector3().fromArray(p.bounds[0]).add(new T.Vector3().fromArray(p.bounds[1])).multiplyScalar(.5));
   const offsets:T.Vector3[]=[],bounds=atlas.parts.map(p=>new T.Box3(new T.Vector3().fromArray(p.bounds[0]),new T.Vector3().fromArray(p.bounds[1])));
+  const stripeDir=new T.Vector3(.42,.82,.38),spans=bounds.map(b=>b.getSize(new T.Vector3()).dot(stripeDir));
   let packingWidth=1,packingHeight=1;
   const markerPositions=new Float32Array(atlas.parts.length*3),markerGeometry=new T.BufferGeometry();markerGeometry.setAttribute('position',new T.BufferAttribute(markerPositions,3));
   const markerMaterial=new T.PointsMaterial({color:0x64748b,size:5,sizeAttenuation:false,transparent:true,opacity:.72,depthTest:false});
@@ -49,12 +54,13 @@ export default function AnatomyScene({atlas,state,onSelect,onProgress,onError}:P
   const materialFor=(system:string)=>{
    const m=new T.MeshStandardMaterial({color:SYSTEMS.find(s=>s.id===system)?.color??'#aebbb8',metalness:.08,roughness:.53,side:T.DoubleSide,transparent:system==='integumentary',opacity:system==='integumentary'?.1:1,depthWrite:system!=='integumentary'});
    m.onBeforeCompile=shader=>{
-    shader.uniforms.partState={value:partTexture};shader.uniforms.selectionState={value:selectionTexture};shader.uniforms.stateWidth={value:width};
-    shader.vertexShader='attribute float partIndex; uniform sampler2D partState; uniform sampler2D selectionState; uniform float stateWidth; varying float partVisible; varying float partSelected;\n'+shader.vertexShader;
-    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvec2 stateUv = vec2((partIndex + 0.5) / stateWidth, 0.5); vec4 state = texture2D(partState, stateUv); transformed += state.xyz; partVisible = state.w; partSelected = texture2D(selectionState, stateUv).r;');
-    shader.fragmentShader='varying float partVisible; varying float partSelected;\n'+shader.fragmentShader;
+    shader.uniforms.partState={value:partTexture};shader.uniforms.selectionState={value:selectionTexture};shader.uniforms.layerState={value:layerTexture};shader.uniforms.stateWidth={value:width};
+    shader.vertexShader=`attribute float partIndex; uniform sampler2D partState; uniform sampler2D selectionState; uniform float stateWidth; varying float partVisible; varying float partSelected; varying vec2 partLayer;\n`+shader.vertexShader;
+    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>\nvec2 stateUv = vec2((partIndex + 0.5) / stateWidth, 0.5); vec4 state = texture2D(partState, stateUv); transformed += state.xyz; partVisible = state.w; partSelected = texture2D(selectionState, stateUv).r; partLayer = vec2(stateUv.x, dot(position, vec3(${stripeDir.toArray().join(', ')})));`);
+    shader.fragmentShader=`varying float partVisible; varying float partSelected; uniform sampler2D layerState; varying vec2 partLayer;\n`+shader.fragmentShader;
     shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>','#include <clipping_planes_fragment>\nif (partVisible < 0.5) discard;');
-    shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.42, 0.85, 0.78), partSelected * 0.75);');
+    // Model units are meters: diagonal bands fixed to the surface and centered on the piece, sized so each piece shows about two cycles of its colors (0.5 to 4.5 cm wide), blending softly into the next band.
+    shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>\nvec4 layerInfo = texture2D(layerState, vec2(partLayer.x, ${MAX_LAYERS+.5} / ${MAX_LAYERS+1}.0));\nif (layerInfo.x > 0.5) { float stripe = (partLayer.y - layerInfo.z) / layerInfo.y; float band = mod(floor(stripe), layerInfo.x), next = mod(band + 1.0, layerInfo.x); vec3 tag = mix(texture2D(layerState, vec2(partLayer.x, (band + 0.5) / ${MAX_LAYERS+1}.0)).rgb, texture2D(layerState, vec2(partLayer.x, (next + 0.5) / ${MAX_LAYERS+1}.0)).rgb, smoothstep(0.86, 1.0, fract(stripe))); diffuseColor.rgb = mix(diffuseColor.rgb, pow(tag, vec3(2.2)), 0.88); }\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.42, 0.85, 0.78), partSelected * 0.75);`);
    };materials.push(m);return m;
   };
   const mats=new Map(SYSTEMS.map(s=>[s.id,materialFor(s.id)]));
@@ -87,16 +93,83 @@ export default function AnatomyScene({atlas,state,onSelect,onProgress,onError}:P
   const down=(e:PointerEvent)=>{hover.hidden=true;tap.down(e.pointerId,e.clientX,e.clientY,e.pointerType==='touch'?12:5);};
   const move=(e:PointerEvent)=>{tap.move(e.pointerId,e.clientX,e.clientY);if(e.buttons||amount<.5||e.pointerType==='touch'){hover.hidden=true;return;}const rect=el.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top,index=findTarget(x,y,12);hover.hidden=index<0;renderer.domElement.style.cursor=index<0?'grab':'pointer';if(index>=0){hover.textContent=atlas.parts[index].name;hover.style.left=`${Math.max(8,Math.min(x+14,el.clientWidth-260))}px`;hover.style.top=`${Math.max(8,Math.min(y+18,el.clientHeight-55))}px`;}};
   const cancel=(e:PointerEvent)=>tap.cancel(e.pointerId);
-  const up=(e:PointerEvent)=>{
-   const validTap=tap.up(e.pointerId,e.clientX,e.clientY);if(!validTap||!ready)return;const rect=renderer.domElement.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);raycaster.setFromCamera(pointer,camera);
+  const pickAt=(clientX:number,clientY:number,touch:boolean)=>{
+   const rect=renderer.domElement.getBoundingClientRect();pointer.set((clientX-rect.left)/rect.width*2-1,-(clientY-rect.top)/rect.height*2+1);raycaster.setFromCamera(pointer,camera);
    let nearest=Infinity,found=-1;const hasSolid=atlas.parts.some((p,i)=>p.system!=='integumentary'&&data[i*4+3]>.5);
    pickers.forEach((mesh,i)=>{if(!mesh||data[i*4+3]<.5||(hasSolid&&atlas.parts[i].system==='integumentary'))return;worldBox.copy(bounds[i]).translate(mesh.position);if(!raycaster.ray.intersectBox(worldBox,hitPoint))return;const hits=raycaster.intersectObject(mesh,false);if(hits[0]&&hits[0].distance<nearest){nearest=hits[0].distance;found=i;}});
-   if(found<0&&amount>.45)found=findTarget(e.clientX-rect.left,e.clientY-rect.top,e.pointerType==='touch'?24:16);if(found>=0){hover.hidden=true;select.current(atlas.parts[found].id);}
+   if(found<0&&amount>.45)found=findTarget(clientX-rect.left,clientY-rect.top,touch?24:16);return found;
+  };
+  const up=(e:PointerEvent)=>{
+   const validTap=tap.up(e.pointerId,e.clientX,e.clientY);if(!validTap||!ready)return;const found=pickAt(e.clientX,e.clientY,e.pointerType==='touch');if(found>=0){hover.hidden=true;select.current(atlas.parts[found].id,false);}
   };
   renderer.domElement.addEventListener('pointerdown',down);renderer.domElement.addEventListener('pointermove',move);renderer.domElement.addEventListener('pointerup',up);renderer.domElement.addEventListener('pointercancel',cancel);
+  // Shift gestures are claimed before OrbitControls, which would otherwise pan on Shift-drag.
+  const marquee=document.createElement('div');marquee.className='scene-marquee';marquee.hidden=true;el.appendChild(marquee);
+  let box:{id:number;x:number;y:number;left:number;top:number;right:number;bottom:number}|null=null;const shifted=new T.Vector3();
+  const boxDown=(e:PointerEvent)=>{
+   if(!e.shiftKey||e.button!==0||!ready||e.target!==renderer.domElement)return;e.stopPropagation();e.preventDefault();hover.hidden=true;
+   const rect=el.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;box={id:e.pointerId,x,y,left:x,top:y,right:x,bottom:y};try{el.setPointerCapture(e.pointerId);}catch{/* Capture is optional; listeners on the host still finish the box. */}
+  };
+  const boxMove=(e:PointerEvent)=>{
+   if(!box||e.pointerId!==box.id)return;const rect=el.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;
+   box.left=Math.min(box.x,x);box.right=Math.max(box.x,x);box.top=Math.min(box.y,y);box.bottom=Math.max(box.y,y);
+   marquee.hidden=box.right-box.left<4&&box.bottom-box.top<4;Object.assign(marquee.style,{left:`${box.left}px`,top:`${box.top}px`,width:`${box.right-box.left}px`,height:`${box.bottom-box.top}px`});
+  };
+  const boxUp=(e:PointerEvent)=>{
+   if(!box||e.pointerId!==box.id)return;boxMove(e);const b=box;box=null;marquee.hidden=true;if(el.hasPointerCapture(e.pointerId))el.releasePointerCapture(e.pointerId);
+   if(b.right-b.left<5&&b.bottom-b.top<5){const found=pickAt(e.clientX,e.clientY,e.pointerType==='touch');if(found>=0)select.current(atlas.parts[found].id,true);else clearSelect.current();return;}
+   const hasSolid=atlas.parts.some((p,i)=>p.system!=='integumentary'&&data[i*4+3]>.5),ids:string[]=[];
+   atlas.parts.forEach((p,i)=>{if(data[i*4+3]<.5||(hasSolid&&p.system==='integumentary'))return;projected.copy(centers[i]).add(shifted.set(data[i*4],data[i*4+1],data[i*4+2])).project(camera);if(projected.z< -1||projected.z>1)return;const x=(projected.x+1)*el.clientWidth/2,y=(1-projected.y)*el.clientHeight/2;if(x>=b.left&&x<=b.right&&y>=b.top&&y<=b.bottom)ids.push(p.id);});
+   if(ids.length)boxSelect.current(ids);
+  };
+  const boxCancel=(e:PointerEvent)=>{if(box&&e.pointerId===box.id){box=null;marquee.hidden=true;}};
+  const shiftKey=(e:KeyboardEvent)=>el.classList.toggle('box-select',e.shiftKey),shiftOff=()=>el.classList.remove('box-select');
+  el.addEventListener('pointerdown',boxDown,{capture:true});el.addEventListener('pointermove',boxMove);el.addEventListener('pointerup',boxUp);el.addEventListener('pointercancel',boxCancel);
+  window.addEventListener('keydown',shiftKey);window.addEventListener('keyup',shiftKey);window.addEventListener('blur',shiftOff);
+  // Group labels sit in a column beside the body, each joined to its structure by a leader line.
+  const SVG='http://www.w3.org/2000/svg',lineLayer=document.createElementNS(SVG,'svg');lineLayer.classList.add('group-lines');el.appendChild(lineLayer);
+  interface Tag {tag:HTMLButtonElement;swatch:HTMLSpanElement;name:HTMLSpanElement;line:SVGPolylineElement;dot:SVGCircleElement}
+  const tags=new Map<string,Tag>(),partIndex=new Map(atlas.parts.map((p,i)=>[p.id,i])),anchor=new T.Vector3(),mean=new T.Vector3();let lastLabels:SceneState['labels']|null=null;
+  const hideTag=(t:Tag)=>{t.tag.hidden=true;t.line.style.display='none';t.dot.style.display='none';};
+  const syncLabels=(labels:SceneLabel[])=>{
+   const ids=new Set(labels.map(l=>l.id));tags.forEach((t,id)=>{if(!ids.has(id)){t.tag.remove();t.line.remove();t.dot.remove();tags.delete(id);}});
+   for(const l of labels){
+    let t=tags.get(l.id);
+    if(!t){const tag=document.createElement('button'),swatch=document.createElement('span'),name=document.createElement('span'),line=document.createElementNS(SVG,'polyline'),dot=document.createElementNS(SVG,'circle');tag.type='button';tag.className='group-tag';tag.hidden=true;swatch.className='group-tag-swatch';name.className='group-tag-name';tag.appendChild(swatch);tag.appendChild(name);tag.addEventListener('click',()=>labelClick.current(l.id));el.appendChild(tag);dot.setAttribute('r','3.5');lineLayer.appendChild(line);lineLayer.appendChild(dot);t={tag,swatch,name,line,dot};tags.set(l.id,t);}
+    const color=l.colors[0]??'#263b48';t.name.textContent=l.name;t.swatch.style.background=stripes(l.colors);t.tag.setAttribute('aria-label',`Show ${l.name}`);t.line.setAttribute('stroke',color);t.dot.setAttribute('fill',color);
+   }
+  };
+  const layoutLabels=(labels:SceneLabel[])=>{
+   const w=el.clientWidth,h=el.clientHeight;projected.copy(controls.target).project(camera);const middle=(projected.x+1)*w/2;
+   const placed:{t:Tag;x:number;y:number;side:number;ty:number}[]=[];
+   for(const l of labels){
+    const t=tags.get(l.id);if(!t)continue;
+    const indices=l.parts.map(id=>partIndex.get(id)).filter((i):i is number=>i!==undefined&&!!pickers[i]&&data[i*4+3]>.5);if(!indices.length){hideTag(t);continue;}
+    const at=(i:number)=>anchor.copy(centers[i]).add(shifted.set(data[i*4],data[i*4+1],data[i*4+2]));
+    mean.set(0,0,0);indices.forEach(i=>mean.add(at(i)));mean.divideScalar(indices.length);
+    let best=indices[0],nearest=Infinity;indices.forEach(i=>{const d=at(i).distanceToSquared(mean);if(d<nearest){nearest=d;best=i;}});
+    at(best).project(camera);const x=(anchor.x+1)*w/2,y=(1-anchor.y)*h/2;
+    if(anchor.z< -1||anchor.z>1||x<0||x>w||y<0||y>h){hideTag(t);continue;}
+    placed.push({t,x,y,side:x<middle?-1:1,ty:y});
+   }
+   for(const side of [-1,1]){
+    const group=placed.filter(p=>p.side===side).sort((a,b)=>a.y-b.y);if(!group.length)continue;
+    let prev=-Infinity;for(const p of group){p.ty=Math.max(p.y,prev+34);prev=p.ty;}const overflow=prev-(h-24);if(overflow>0)group.forEach(p=>p.ty-=overflow);
+    const column=side<0?Math.max(150,Math.min(...group.map(p=>p.x))-70):Math.min(w-150,Math.max(...group.map(p=>p.x))+70);
+    for(const p of group){
+     const elbow=column-side*18;p.t.tag.hidden=false;p.t.line.style.display='';p.t.dot.style.display='';p.t.tag.classList.toggle('to-left',side<0);
+     p.t.tag.style.left=`${column}px`;p.t.tag.style.top=`${p.ty}px`;p.t.line.setAttribute('points',`${p.x},${p.y} ${elbow},${p.ty} ${column},${p.ty}`);p.t.dot.setAttribute('cx',String(p.x));p.t.dot.setAttribute('cy',String(p.y));
+    }
+   }
+  };
   const clock=new T.Clock();let lastExtent=-1;
   const animate=()=>{
    if(disposed)return;frame=requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05),s=latest.current;
+   if(s.layers!==lastLayers){
+    layerData.fill(0);atlas.parts.forEach((p,i)=>{const list=s.layers?.[p.id]?.slice(0,MAX_LAYERS);if(!list?.length)return;list.forEach((hex,k)=>{const n=parseInt(hex.slice(1),16);layerData.set([(n>>16&255)/255,(n>>8&255)/255,(n&255)/255],(k*width+i)*4);});layerData.set([list.length,T.MathUtils.clamp(spans[i]/(list.length*2),.005,.045),centers[i].dot(stripeDir)],(MAX_LAYERS*width+i)*4);});
+    layerTexture.needsUpdate=true;lastLayers=s.layers;dirty=true;
+   }
+   if(s.labels!==lastLabels){syncLabels(s.labels??[]);lastLabels=s.labels;dirty=true;}
    const changed=lastState?.visible!==s.visible||lastState?.selected!==s.selected||lastState?.isolate!==s.isolate;
    const moving=Math.abs(amount-s.explode)>.0001;
    if(moving){amount=T.MathUtils.damp(amount,s.explode,8,dt);dirty=true;}
@@ -124,11 +197,11 @@ export default function AnatomyScene({atlas,state,onSelect,onProgress,onError}:P
     lastIsolate=isolateKey;
    }
    controls.enableRotate=amount<.8;controls.mouseButtons.LEFT=amount<.8?T.MOUSE.ROTATE:T.MOUSE.PAN;controls.touches.ONE=amount<.8?T.TOUCH.ROTATE:T.TOUCH.PAN;ground.visible=platform.visible=ring.visible=innerRing.visible=amount<.5&&!s.isolate;markers.visible=amount>.75;controls.autoRotate=s.rotate&&!s.isolate&&amount<.4;controls.autoRotateSpeed=.65;controls.update();if(controls.autoRotate)dirty=true;
-   if(dirty){renderer.render(scene,camera);targets=[];if(amount>.45){const hasSolid=atlas.parts.some((p,i)=>p.system!=='integumentary'&&data[i*4+3]>.5);atlas.parts.forEach((p,i)=>{if(data[i*4+3]<.5||(hasSolid&&p.system==='integumentary'))return;let left=Infinity,right=-Infinity,top=Infinity,bottom=-Infinity;for(let corner=0;corner<8;corner++){projected.set(p.bounds[(corner&1)?1:0][0]+data[i*4],p.bounds[(corner&2)?1:0][1]+data[i*4+1],p.bounds[(corner&4)?1:0][2]+data[i*4+2]).project(camera);const x=(projected.x+1)*el.clientWidth/2,y=(1-projected.y)*el.clientHeight/2;left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);}projected.copy(centers[i]).add(new T.Vector3(data[i*4],data[i*4+1],data[i*4+2])).project(camera);if(projected.z< -1||projected.z>1)return;targets.push({index:i,x:(projected.x+1)*el.clientWidth/2,y:(1-projected.y)*el.clientHeight/2,left,right,top,bottom});});}dirty=false;}
+   if(dirty){renderer.render(scene,camera);targets=[];if(amount>.45){const hasSolid=atlas.parts.some((p,i)=>p.system!=='integumentary'&&data[i*4+3]>.5);atlas.parts.forEach((p,i)=>{if(data[i*4+3]<.5||(hasSolid&&p.system==='integumentary'))return;let left=Infinity,right=-Infinity,top=Infinity,bottom=-Infinity;for(let corner=0;corner<8;corner++){projected.set(p.bounds[(corner&1)?1:0][0]+data[i*4],p.bounds[(corner&2)?1:0][1]+data[i*4+1],p.bounds[(corner&4)?1:0][2]+data[i*4+2]).project(camera);const x=(projected.x+1)*el.clientWidth/2,y=(1-projected.y)*el.clientHeight/2;left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);}projected.copy(centers[i]).add(new T.Vector3(data[i*4],data[i*4+1],data[i*4+2])).project(camera);if(projected.z< -1||projected.z>1)return;targets.push({index:i,x:(projected.x+1)*el.clientWidth/2,y:(1-projected.y)*el.clientHeight/2,left,right,top,bottom});});}layoutLabels(s.labels??[]);dirty=false;}
 
   };animate();
   const contextLost=(e:Event)=>{e.preventDefault();onError('The 3D session was paused by your device. Reload to continue.');};renderer.domElement.addEventListener('webglcontextlost',contextLost);
-  return()=>{disposed=true;abort.abort();cancelAnimationFrame(frame);observer.disconnect();controls.dispose();geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());scene.traverse(o=>{if(o instanceof T.Mesh&&!geometries.includes(o.geometry)){o.geometry.dispose();const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>m.dispose());}});env.dispose();partTexture.dispose();selectionTexture.dispose();markerGeometry.dispose();markerMaterial.dispose();hover.remove();renderer.dispose();renderer.domElement.remove();};
+  return()=>{disposed=true;abort.abort();cancelAnimationFrame(frame);observer.disconnect();controls.dispose();geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());scene.traverse(o=>{if(o instanceof T.Mesh&&!geometries.includes(o.geometry)){o.geometry.dispose();const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>m.dispose());}});env.dispose();partTexture.dispose();selectionTexture.dispose();layerTexture.dispose();markerGeometry.dispose();markerMaterial.dispose();hover.remove();marquee.remove();lineLayer.remove();tags.forEach(t=>t.tag.remove());el.removeEventListener('pointerdown',boxDown,{capture:true});el.removeEventListener('pointermove',boxMove);el.removeEventListener('pointerup',boxUp);el.removeEventListener('pointercancel',boxCancel);window.removeEventListener('keydown',shiftKey);window.removeEventListener('keyup',shiftKey);window.removeEventListener('blur',shiftOff);shiftOff();renderer.dispose();renderer.domElement.remove();};
  },[atlas]);
  return <div className="scene" ref={host}/>;
 }

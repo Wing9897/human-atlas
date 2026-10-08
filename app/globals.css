@@ -86,3 +86,34 @@ h1 .edition{font-family:inherit;font-weight:500;font-size:10px;letter-spacing:.0
 @media(max-width:767px){body:has(.detail-sheet) .view-controls{visibility:hidden}}
 
 @media(max-height:600px) and (orientation:landscape){body:has(.detail-sheet) .bottom-dock{left:12px;right:324px;width:auto;transform:none;max-width:none;margin:0}}
+
+/* User groups: multi-select box, group list, and editor. */
+.scene-marquee{position:absolute;z-index:44;pointer-events:none;border:1px solid #458a85;background:#458a8514;border-radius:3px}.scene-marquee[hidden]{display:none}.scene.box-select canvas{cursor:crosshair!important}
+.group-count{font-size:10px;font-weight:600;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#263b48;color:white;display:inline-flex;align-items:center;justify-content:center}
+.groups-panel{display:flex;flex-direction:column;gap:12px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#b9c1c8 transparent}
+.groups-panel .search-note{margin:0}.groups-panel .primary-action{flex-shrink:0}.groups-panel .primary-action:disabled{opacity:.4}
+.group-pending{margin-left:auto;font-size:11px;font-variant-numeric:tabular-nums;opacity:.75}
+.group-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}.group-row{display:flex;align-items:center;gap:2px;border-bottom:1px solid #18253610;min-height:44px}.group-row.is-hidden .group-swatch{opacity:.25}.group-row.tag-off .group-label{color:#8a949e}.group-toggle-icon.is-off{color:#a3acb5;position:relative}.group-toggle-icon.is-off:not(:has(.lucide-eye-off))::after{content:"";position:absolute;left:8px;right:8px;top:50%;height:1.5px;background:currentColor;transform:rotate(-45deg)}.group-toggle-icon:not(.is-off){color:#3d6b82}
+.group-name{flex:1;min-width:0;display:flex;align-items:center;gap:7px;justify-content:flex-start;font-size:13px;font-weight:400;padding:0 4px;height:40px}.group-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;color:#26313c}
+.group-swatch{width:16px;height:16px;border-radius:5px;flex-shrink:0;box-shadow:inset 0 0 0 1px #18253620}
+.group-icon{width:28px;min-width:28px;height:32px;padding:0;color:#6c7a88;border-radius:7px;flex-shrink:0}.group-confirm{height:32px;padding:0 10px;font-size:12px;color:#a8574a;border:1px solid #a8574a40;border-radius:7px}
+.group-field{display:flex;flex-direction:column;gap:7px}.group-field>span{display:flex;justify-content:space-between;font-size:11px;font-weight:500;color:#5b6875;letter-spacing:.02em}.group-field>span em{font-style:normal;font-weight:400;color:#87929d;font-variant-numeric:tabular-nums}.group-field [data-slot=input]{height:38px;font-size:14px;background:#f7f9fa}
+.color-row{display:flex;align-items:center;gap:8px}.color-picker{position:relative;width:38px;height:38px;border-radius:9px;flex-shrink:0;box-shadow:inset 0 0 0 1px #18253624;overflow:hidden}.color-picker input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}.color-picker:focus-within{outline:2px solid #538d9a;outline-offset:2px}
+.hex-input{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:lowercase}
+.group-add{justify-content:flex-start;gap:7px;font-size:12px;font-weight:400;color:#516d7b;height:34px;padding:0 6px}.group-add:disabled{opacity:.4}
+.group-parts{display:flex;flex-direction:column;max-height:190px;overflow-y:auto;border:1px solid #18253612;border-radius:10px;padding:2px 4px 2px 10px;scrollbar-width:thin}.group-parts .search-note{padding:8px 0}
+.group-part{display:flex;align-items:center;gap:6px;min-height:34px;font-size:12px;color:#394957;border-bottom:1px solid #1825360c}.group-part:last-child{border-bottom:0}.group-part span{flex:1;min-width:0;text-transform:capitalize;overflow-wrap:anywhere}
+.group-actions{display:flex;flex-direction:column;gap:4px;padding-top:4px;border-top:1px solid #18253612;flex-shrink:0}
+.group-action{display:flex;align-items:center;gap:7px;justify-content:center;color:#516d7b}
+@media(max-width:767px){.groups-panel{max-height:calc(100dvh - 270px)}.group-icon{width:36px;min-width:36px;height:40px}.group-name{height:44px}.group-field [data-slot=input]{font-size:16px;height:44px}.color-picker{width:44px;height:44px}.top-actions .group-count{position:absolute;top:3px;right:3px;min-width:16px;height:16px;font-size:9px}.top-actions button{position:relative}}
+.group-toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:#5b6875;padding:0 4px}.group-toggle [data-slot=switch]{--primary:#536875}
+.group-children{display:flex;flex-direction:column;gap:2px;border:1px solid #18253612;border-radius:10px;padding:3px}.group-child{justify-content:flex-start;gap:9px;height:36px;padding:0 8px;font-size:12px;font-weight:400;color:#6c7a88}.group-child[aria-pressed=true]{background:#263b480f;color:#26313c}
+.group-lines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;overflow:visible}.group-lines polyline{fill:none;stroke-width:1.5;stroke-linejoin:round}.group-lines circle{stroke:white;stroke-width:1.5}
+.scene .group-tag{position:absolute;z-index:0;transform:translate(0,-50%);display:flex;align-items:center;gap:7px;max-width:200px;padding:5px 10px 5px 7px;border-radius:8px;background:#ffffffeb;border:1px solid #18253618;box-shadow:0 2px 8px #18253612;font-size:12px;line-height:1.3;color:#26313c;white-space:nowrap;cursor:pointer}
+.scene .group-tag:hover{background:#fff;border-color:#18253630}.scene .group-tag.to-left{transform:translate(-100%,-50%)}.scene .group-tag[hidden]{display:none}
+.group-tag-swatch{width:10px;height:10px;border-radius:3px;flex-shrink:0;box-shadow:inset 0 0 0 1px #18253620}.group-tag-name{min-width:0;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:767px){.scene .group-tag{font-size:11px;padding:4px 8px 4px 6px;max-width:140px}}
+/* Group panels share the detail sheet's slot so they never cover the camera controls. */
+@media(min-width:768px){.groups-panel{top:105px;right:95px;width:310px;max-height:calc(100dvh - 283px)}}
+@media(min-width:768px) and (max-width:1000px){.groups-panel{right:80px;width:280px}}
+@media(max-height:600px) and (orientation:landscape){.groups-panel{top:12px;right:max(12px,env(safe-area-inset-right));width:300px;max-height:calc(100dvh - 24px)}}
