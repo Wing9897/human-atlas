@@ -22,7 +22,7 @@ export interface Atlas {version:string;sex?:'male';source?:string;scope?:string;
 export type View = 'three-quarter'|'front'|'back'|'side';
 export interface ScenePoint {part:string;at:[number,number,number];colors?:string[]}
 export interface SceneLabel {id:string;name:string;colors:string[];parts:string[];points?:ScenePoint[];anchor?:string}
-export interface SceneState {inspectorOpen?:boolean;layers?:Record<string,string[]>;labels?:SceneLabel[];points?:ScenePoint[];placing?:boolean;explode:number;visible:SystemId[];selected:string[];isolate:boolean;view:View;rotate:boolean;reset:number;shot:number}
+export interface SceneState {inspectorOpen?:boolean;layers?:Record<string,string[]>;labels?:SceneLabel[];points?:ScenePoint[];placing?:boolean;multi?:boolean;explode:number;visible:SystemId[];selected:string[];isolate:boolean;view:View;rotate:boolean;reset:number;shot:number}
 export const DEFAULT_VISIBLE:SystemId[] = ['cardiac','sensory','skeletal','muscular','arterial','venous','nervous','respiratory','digestive','urinary','lymphatic','endocrine','reproductive','connective'];
 export const EXPLANATIONS:Record<string,string> = {
  'heart':'A muscular pump in the chest. Its right side sends blood to the lungs; its left side sends blood through the systemic circulation.',

@@ -122,3 +122,23 @@ h1 .edition{font-family:inherit;font-weight:500;font-size:10px;letter-spacing:.0
 .color-picker.is-white,.color-swatch.is-white{box-shadow:inset 0 0 0 1px #1825365c}.color-picker.is-white[aria-pressed=true],.color-swatch.is-white[aria-pressed=true]{box-shadow:inset 0 0 0 1px #1825365c,0 0 0 2px #fff,0 0 0 4px #263b48}
 .group-io{display:flex;gap:2px;margin-left:auto;margin-right:4px}.group-io-error{margin:0;font-size:12px;line-height:1.4;color:#c0392b;padding:0 4px}
 .group-icon.is-anchor{background:#263b48;color:#fff}.group-icon.is-anchor:hover{background:#3b5261;color:#fff}
+.multi-select,.multi-select-note,.multi-select-bar{display:none}
+.multi-select-note{margin:0;font-size:13px;line-height:1.45;color:#5b6875}
+.multi-select{align-items:center;justify-content:space-between;gap:10px;min-height:44px;padding:2px 4px;font-size:13px;font-weight:500;color:#26313c}
+.multi-select-bar{position:absolute;z-index:46;align-items:center;gap:8px;left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right));bottom:calc(148px + env(safe-area-inset-bottom));padding:8px 8px 8px 14px;border-radius:14px;font-size:13px;color:#26313c}
+.multi-select-bar>span{flex:1;min-width:0}.multi-select-bar button{min-height:44px;padding:0 12px;border-radius:9px;font-size:13px;color:#263b48}
+@media(max-width:767px){
+ .multi-select{display:flex}.multi-select-note{display:block}.multi-select-bar{display:flex}
+ .groups-panel{top:max(108px,calc(env(safe-area-inset-top) + 90px));bottom:calc(148px + env(safe-area-inset-bottom));left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right));width:auto;max-height:none}
+ .group-field [data-slot=input],.groups-panel input,.hex-input{font-size:16px}
+ .color-palette{grid-template-columns:repeat(auto-fill,36px);gap:8px}.color-swatch{width:36px;height:36px}
+ .group-child,.group-part,.group-add{min-height:44px;height:auto}
+ .scene .group-tag{min-height:44px;align-items:center}
+}
+@media(max-height:600px) and (orientation:landscape){
+ .multi-select{display:flex}.multi-select-note{display:block}.multi-select-bar{display:flex;bottom:calc(112px + env(safe-area-inset-bottom));left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right))}
+ .groups-panel{top:12px;bottom:12px;left:auto;right:max(12px,env(safe-area-inset-right));width:min(300px,calc(100vw - 24px));max-height:none}
+ body:has(.groups-panel) .bottom-dock{left:max(12px,env(safe-area-inset-left));right:324px;width:auto;transform:none;max-width:none;margin:0}
+ .group-field [data-slot=input],.groups-panel input,.hex-input{font-size:16px;height:44px}
+ .scene .group-tag{min-height:40px;align-items:center}
+}

@@ -8,6 +8,7 @@ import {decodeModelResponse} from './model-download';
 import {PointerTap} from './pointer-tap';
 import {SYSTEMS,type Atlas,type SceneLabel,type SceneState} from './anatomy';
 import {MAX_LAYERS,stripes} from './groups';
+import {withBase} from './base-url';
 interface Props {atlas:Atlas;state:SceneState;onSelect:(id:string,additive:boolean)=>void;onBoxSelect:(ids:string[])=>void;onClear:()=>void;onLabel:(id:string)=>void;onPoint:(part:string,at:[number,number,number])=>void;onProgress:(n:number)=>void;onError:(s:string)=>void}
 export default function AnatomyScene({atlas,state,onSelect,onBoxSelect,onClear,onLabel,onPoint,onProgress,onError}:Props){
  const host=useRef<HTMLDivElement>(null),latest=useRef(state),select=useRef(onSelect),boxSelect=useRef(onBoxSelect),clearSelect=useRef(onClear),labelClick=useRef(onLabel),addPoint=useRef(onPoint);
@@ -66,7 +67,7 @@ export default function AnatomyScene({atlas,state,onSelect,onBoxSelect,onClear,o
   const mats=new Map(SYSTEMS.map(s=>[s.id,materialFor(s.id)]));
   let loaded=0;
   const loadChunk=async(ci:number)=>{
-   const chunk=atlas.chunks[ci],compressed=!!chunk.gzip&&typeof DecompressionStream!=='undefined';const response=await fetch(compressed?chunk.gzip!:chunk.url,{signal:abort.signal});const buffer=await decodeModelResponse(response,chunk.bytes,compressed);if(disposed)return;
+   const chunk=atlas.chunks[ci],compressed=!!chunk.gzip&&typeof DecompressionStream!=='undefined';const response=await fetch(withBase(compressed?chunk.gzip!:chunk.url),{signal:abort.signal});const buffer=await decodeModelResponse(response,chunk.bytes,compressed);if(disposed)return;
    const groups=new Map<string,T.BufferGeometry[]>();
    atlas.parts.forEach((p,i)=>{
     if(p.chunk!==ci)return;
@@ -103,7 +104,7 @@ export default function AnatomyScene({atlas,state,onSelect,onBoxSelect,onClear,o
    const validTap=tap.up(e.pointerId,e.clientX,e.clientY);if(!validTap||!ready)return;const found=pickAt(e.clientX,e.clientY,e.pointerType==='touch');
    // Marker mode only accepts a real surface hit, stored relative to the piece's current explode offset.
    if(latest.current.placing){if(pickHit>=0){pickPoint.sub(pickers[pickHit]!.position);addPoint.current(atlas.parts[pickHit].id,[pickPoint.x,pickPoint.y,pickPoint.z]);}return;}
-   if(found>=0){hover.hidden=true;select.current(atlas.parts[found].id,false);}
+   if(found>=0){hover.hidden=true;select.current(atlas.parts[found].id,!!latest.current.multi);}
   };
   renderer.domElement.addEventListener('pointerdown',down);renderer.domElement.addEventListener('pointermove',move);renderer.domElement.addEventListener('pointerup',up);renderer.domElement.addEventListener('pointercancel',cancel);
   // Shift gestures are claimed before OrbitControls, which would otherwise pan on Shift-drag.
@@ -142,7 +143,7 @@ export default function AnatomyScene({atlas,state,onSelect,onBoxSelect,onClear,o
     const color=l.colors[0]??'#263b48';t.name.textContent=l.name;t.width=0;t.swatch.style.background=stripes(l.colors);t.tag.setAttribute('aria-label',`Show ${l.name}`);t.line.setAttribute('stroke',color);t.dot.setAttribute('fill',color);
    }
   };
-  const SIDE_UI=['.layers-panel','.search-panel','.detail-sheet','.view-controls'],EDGE_UI=['.identity','.top-actions','.bottom-dock'];
+  const SIDE_UI=['.layers-panel','.search-panel','.detail-sheet','.view-controls'],EDGE_UI=['.identity','.top-actions','.bottom-dock','.multi-select-bar'];
   const layoutLabels=(labels:SceneLabel[])=>{
    const w=el.clientWidth,h=el.clientHeight,hostBox=el.getBoundingClientRect();projected.copy(controls.target).project(camera);const middle=(projected.x+1)*w/2;
    const placed:{t:Tag;x:number;y:number;side:number;ty:number}[]=[];

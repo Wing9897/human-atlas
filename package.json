@@ -51,6 +51,7 @@
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",
     "vite": "8.0.13",
+    "vite-plugin-pwa": "^2.0.0",
     "wrangler": "4.92.0"
   },
   "type": "module",

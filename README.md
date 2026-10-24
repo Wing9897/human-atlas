@@ -22,7 +22,7 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:3016. To build the static site, run `npm run build`; the output is in `dist/`.
+Open http://localhost:3016/human-atlas/. To build the static site, run `npm run build`; the output is in `dist/`.
 
 ## Validate
 
@@ -52,6 +52,12 @@ The optional WebMCP tools expose anatomy search and inspection in compatible bro
 ## Rebuilding geometry
 
 The repository includes browser-ready geometry. Rebuilding it is optional: obtain the official BodyParts3D OBJ archive and English metadata tables, prepare the joined concepts and display-system mappings, run `scripts/convert-anatomy.py`, then `node scripts/optimize-anatomy.mjs` and `node scripts/compress-models.mjs`. Simplification uses a 0.2% relative error limit per structure.
+
+## GitHub Pages and PWA
+
+`npm run build` writes the static site to `dist/`. A GitHub Actions workflow is set up to publish that folder with GitHub Pages, aimed at https://wing9897.github.io/human-atlas/. The workflow has not been pushed, so that address is not live yet.
+
+The site is client-only. Groups, tags, and combines stay in this browser (`localStorage`) and are not uploaded. Install Human Atlas from the browser’s install prompt or the share sheet to add it to the home screen. The first visit still downloads the anatomy files (about 33 MB). Later visits can open the app shell, and reuse those files, without a network.
 
 ## Deploy
 
