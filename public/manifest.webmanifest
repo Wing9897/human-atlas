@@ -1,6 +1,8 @@
 {
   "name": "Human Atlas",
   "short_name": "Atlas",
+  "description": "An interactive atlas of the human body.",
+  "id": "/human-atlas/",
   "display": "standalone",
   "start_url": "/human-atlas/",
   "scope": "/human-atlas/",
