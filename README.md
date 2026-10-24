@@ -2,7 +2,7 @@
 
 An interactive 3D anatomy explorer built with React, Three.js, and shadcn/ui. Take the BodyParts3D adult male reference apart into **2,234 individually selectable meshes**, explore **15 anatomical systems**, and search **3,432 named concepts**.
 
-**[Explore the live demo](https://human-atlas-seven.vercel.app)**
+**[Explore the live demo](https://human-atlas-seven.vercel.app)** · **[Open on GitHub Pages](https://wing9897.github.io/human-atlas/)**
 
 ## Explore
 
@@ -55,7 +55,7 @@ The repository includes browser-ready geometry. Rebuilding it is optional: obtai
 
 ## GitHub Pages and PWA
 
-`npm run build` writes the static site to `dist/`. A GitHub Actions workflow is set up to publish that folder with GitHub Pages, aimed at https://wing9897.github.io/human-atlas/. The workflow has not been pushed, so that address is not live yet.
+`npm run build` writes the static site to `dist/`. A GitHub Actions workflow publishes that folder with GitHub Pages. The live site is https://wing9897.github.io/human-atlas/.
 
 The site is client-only. Groups, tags, and combines stay in this browser (`localStorage`) and are not uploaded. Install Human Atlas from the browser’s install prompt or the share sheet to add it to the home screen. The first visit still downloads the anatomy files (about 33 MB). Later visits can open the app shell, and reuse those files, without a network.
 
